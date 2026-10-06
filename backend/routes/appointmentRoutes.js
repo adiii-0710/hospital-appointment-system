@@ -6,7 +6,6 @@ const doctorAuthMiddleware = require("../middleware/doctorAuthMiddleware");
 
 const router = express.Router();
 
-// Book an appointment
 router.post("/", authMiddleware, async (req, res) => {
   try {
     const { doctor, date, time } = req.body;
@@ -17,7 +16,6 @@ router.post("/", authMiddleware, async (req, res) => {
       });
     }
 
-    // Check if doctor exists
     const doctorExists = await Doctor.findById(doctor);
 
     if (!doctorExists) {
@@ -26,18 +24,17 @@ router.post("/", authMiddleware, async (req, res) => {
       });
     }
 
-    // Check for slot conflict
+    if (!doctorExists.availableSlots.includes(time)) {
+      return res.status(400).json({
+        message: "This time slot is not available for this doctor"
+      });
+    }
+
     const existingAppointment = await Appointment.findOne({
       doctor,
       date,
       time
     });
-
-    if (!doctorExists.availableSlots.includes(time)) {
-  return res.status(400).json({
-    message: "This time slot is not available for this doctor"
-  });
-}
 
     if (existingAppointment) {
       return res.status(400).json({
@@ -45,9 +42,6 @@ router.post("/", authMiddleware, async (req, res) => {
       });
     }
 
-    
-
-    // Create appointment
     const appointment = await Appointment.create({
       patient: req.patient.id,
       doctor,
@@ -65,7 +59,7 @@ router.post("/", authMiddleware, async (req, res) => {
     });
   }
 });
-// Get logged-in patient's appointments
+
 router.get("/my", authMiddleware, async (req, res) => {
   try {
     const appointments = await Appointment.find({
@@ -85,27 +79,6 @@ router.get("/my", authMiddleware, async (req, res) => {
   }
 });
 
-// Get doctor's appointments
-router.get("/doctor/:id", authMiddleware, async (req, res) => {
-  try {
-    const appointments = await Appointment.find({
-      doctor: req.params.id
-    })
-      .populate("patient", "name email")
-      .populate("doctor", "name specialization")
-      .sort({ date: 1, time: 1 });
-
-    res.json({
-      count: appointments.length,
-      appointments
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: error.message
-    });
-  }
-});
-// Get logged-in doctor's appointment schedule
 router.get(
   "/doctor/my",
   doctorAuthMiddleware,
@@ -115,14 +88,32 @@ router.get(
         doctor: req.doctor.id
       })
         .populate("patient", "name email")
-        .populate(
-          "doctor",
-          "name specialization email"
-        )
-        .sort({
-          date: 1,
-          time: 1
-        });
+        .populate("doctor", "name specialization email")
+        .sort({ date: 1, time: 1 });
+
+      res.json({
+        count: appointments.length,
+        appointments
+      });
+    } catch (error) {
+      res.status(500).json({
+        message: error.message
+      });
+    }
+  }
+);
+
+router.get(
+  "/doctor/:id",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const appointments = await Appointment.find({
+        doctor: req.params.id
+      })
+        .populate("patient", "name email")
+        .populate("doctor", "name specialization")
+        .sort({ date: 1, time: 1 });
 
       res.json({
         count: appointments.length,
@@ -137,4 +128,3 @@ router.get(
 );
 
 module.exports = router;
-
